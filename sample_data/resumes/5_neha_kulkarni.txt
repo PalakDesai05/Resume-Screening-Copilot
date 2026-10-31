@@ -1,0 +1,19 @@
+Neha Kulkarni
+AI Engineer | Bengaluru, India
+Email: neha.kulkarni@example.com | Phone: +91 98220 33445
+LinkedIn: linkedin.com/in/nehakulkarni
+
+SUMMARY
+AI engineer with 3 years of experience in LLM applications. She enjoys turning research ideas into dependable services.
+
+EXPERIENCE
+AI Engineer - Finlytics AI                                    Jul 2023 - Present
+- Built a RAG-based document assistant using LangChain and Hugging Face models.
+- Exposed it through FastAPI endpoints, packaged with Docker and tracked in Git.
+- Wrote SQL reports and applied prompt engineering plus Machine Learning classifiers in Python.
+
+EDUCATION
+M.Tech Artificial Intelligence, VIT Vellore   2021 - 2023
+
+SKILLS
+Python, Machine Learning, LLMs, RAG, Prompt Engineering, FastAPI, SQL, Docker, Git, LangChain, Hugging Face

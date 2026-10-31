@@ -1,0 +1,27 @@
+AI Engineer (Generative AI)
+Experience: 3+ years
+
+About the role
+We are building LLM-powered products for enterprise knowledge search and need an AI Engineer who can take ideas from prototype to production.
+
+Responsibilities
+- Design retrieval-augmented assistants and evaluation harnesses
+- Ship reliable APIs and monitor them in production
+
+Required skills
+- Python
+- Machine Learning
+- LLMs
+- RAG (retrieval-augmented generation)
+- Prompt Engineering
+- FastAPI
+- SQL
+- Docker
+- Git
+
+Preferred skills
+- LangChain
+- Vector Databases
+- AWS
+- Kubernetes
+- Hugging Face

@@ -1,0 +1,25 @@
+Aarav Mehta
+Senior AI Engineer | Pune, India
+Email: aarav.mehta@example.com | Phone: +91 98765 43210
+LinkedIn: linkedin.com/in/aarav-mehta | GitHub: github.com/aaravmehta
+Date of Birth: 14 March 1996
+Gender: Male
+
+SUMMARY
+AI engineer who builds production Generative AI systems. He has shipped retrieval-augmented assistants used by thousands of employees, and his work focuses on reliability and evaluation.
+
+EXPERIENCE
+Senior AI Engineer - NovaMind Labs, Pune                      Jul 2021 - Present
+- Designed a RAG pipeline with LangChain, FAISS and Llama models; cut answer latency by 40%.
+- Built FastAPI microservices, containerised with Docker and deployed on Kubernetes (AWS).
+- Led prompt engineering and an automated LLM evaluation harness.
+
+Machine Learning Engineer - DataBridge Analytics, Mumbai       Jun 2019 - Jun 2021
+- Trained machine learning models in Python (scikit-learn) and wrote SQL feature pipelines.
+- Git-based code reviews, CI/CD and model monitoring.
+
+EDUCATION
+B.E. Computer Engineering, Savitribai Phule Pune University   2015 - 2019   CGPA 8.9
+
+SKILLS
+Python, SQL, Machine Learning, LLMs, RAG, Prompt Engineering, FastAPI, Docker, Git, LangChain, Hugging Face, AWS, Kubernetes, Vector Databases (FAISS, Pinecone)

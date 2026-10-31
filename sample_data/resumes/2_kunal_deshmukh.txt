@@ -1,0 +1,20 @@
+Kunal Deshmukh
+Fresher | Nashik, India
+Email: kunal.d@example.com | Phone: +91 91234 56789
+
+OBJECTIVE
+Recent graduate looking for a first role where he can learn and contribute. He enjoys building small websites.
+
+EDUCATION
+B.Tech Information Technology, Sanjivani College of Engineering   2022 - 2026   CGPA 7.8
+
+INTERNSHIP
+Web Development Intern - PixelCraft Studio                    Jun 2025 - Aug 2025
+- Built responsive landing pages with HTML and CSS.
+
+PROJECTS
+Library Management System - Java and MySQL desktop application
+Portfolio website - HTML, CSS, JavaScript
+
+SKILLS
+Java, C++, HTML, CSS, JavaScript, MySQL

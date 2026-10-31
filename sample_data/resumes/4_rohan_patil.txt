@@ -1,0 +1,22 @@
+Rohan Patil
+Full-Stack Developer | Satara, India
+Email: rohan.patil@example.com | Phone: +91 90000 11122
+Portfolio: www.rohanpatil.dev
+
+SUMMARY
+Full-stack developer with 4 years of experience building web products. He recently started adding LLM features to apps.
+
+EXPERIENCE
+Full-Stack Developer - CloudNest Technologies                 Jan 2022 - Present
+- Built React and Node.js (TypeScript) apps with MongoDB and SQL databases.
+- Dockerised services, used Git workflows and REST APIs, deployed on AWS.
+- Integrated the OpenAI API into a support chat feature and tuned prompt engineering templates.
+
+EDUCATION
+B.E. Information Technology, Shivaji University   2017 - 2021
+
+CERTIFICATIONS
+Machine Learning course (Coursera)
+
+SKILLS
+React, Node.js, TypeScript, MongoDB, SQL, Docker, Git, REST APIs, AWS, LLMs, Prompt Engineering, Machine Learning

@@ -1,4 +1,0 @@
-AI Engineer (Generative AI)
-We need an AI Engineer with 3+ years of experience building LLM applications.
-Required: Python, LLMs, RAG, FastAPI, Docker, SQL, Git, REST APIs.
-Nice to have: LangChain, AWS, Kubernetes, Vector Databases (FAISS/Pinecone), MLOps.

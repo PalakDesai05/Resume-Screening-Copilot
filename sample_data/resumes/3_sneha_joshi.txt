@@ -1,0 +1,19 @@
+Sneha Joshi
+Data Analyst | Kolhapur, India
+Email: sneha.joshi@example.com | Phone: +91 99887 76655
+Age: 28
+
+SUMMARY
+Detail-oriented data analyst who turns messy sales data into clear dashboards. She works closely with business teams.
+
+EXPERIENCE
+Data Analyst - Insight Retail Pvt Ltd                         Jun 2022 - Present
+- Wrote SQL and Python (Pandas) scripts to automate weekly reporting.
+- Built Power BI and Tableau dashboards used by regional managers.
+- Applied statistics (A/B testing) and Excel models to forecast demand.
+
+EDUCATION
+B.Sc. Statistics, Shivaji University   2018 - 2021
+
+SKILLS
+Python, SQL, Pandas, NumPy, Excel, Power BI, Tableau, Statistics, Data Analysis

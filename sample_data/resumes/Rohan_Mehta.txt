@@ -1,5 +1,0 @@
-Rohan Mehta
-rohan.m@mail.com | +91 90000 11111
-Full stack developer, 3 years of experience. JavaScript, React, Node.js, Docker, Git, REST APIs, SQL.
-Developer, WebSoft 2022 - 2025. Recently learning LLMs and prompt engineering.
-B.E. Computer Engineering

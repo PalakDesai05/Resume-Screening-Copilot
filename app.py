@@ -1,177 +1,541 @@
-import os, re, time, pandas as pd, streamlit as st
-from copilot.parser import parse_resume, read_file
-from copilot.scorer import parse_jd, score_all
-from copilot.agent import Screening, run_llm_agent, run_offline_agent, llm_available
+import os
+from html import escape as esc
+from pathlib import Path
+
+import pandas as pd
+import streamlit as st
+
+import agent as A
+import engine as E
 
 st.set_page_config(page_title="Resume Screening Copilot", page_icon="🧭", layout="wide")
+SAMPLES = Path(__file__).parent / "sample_data"
+COL = {"Strong match": "#15803D", "Potential": "#B45309", "Weak match": "#B91C1C"}
+PILL = {"Strong match": "strong", "Potential": "pot", "Weak match": "weak"}
+
 st.markdown("""<style>
-[data-testid='stAppDeployButton'],.stAppDeployButton,.stDeployButton{display:none!important}
-.hero{background:linear-gradient(135deg,#6a5cff 0%,#00b3ff 60%,#00d4aa 100%);padding:20px 28px;border-radius:18px;color:#fff;margin-bottom:10px}
-.hero h1{margin:0;font-size:1.7rem;color:#fff;padding:0}.hero p{margin:4px 0 0;opacity:.92}
-div[data-testid='stButton']>button{border-radius:999px}
+:root {
+  --teal: #0F766E;
+  --teal-hover: #115E59;
+  --accent: #EA580C;
+  --accent-hover: #C2410C;
+  --bg: #F5F5F0;
+  --border: #D6D3D1;
+  --text: #1C1917;
+  --muted: #57534E;
+}
+html, body, .stApp, [class*="css"] {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  color: var(--text);
+}
+.stApp { background: var(--bg); }
+.block-container { padding-top: 1.2rem; max-width: 1200px; }
+header[data-testid="stHeader"] { background: transparent; }
+[data-testid="stSidebar"] { background: #FFFFFF; border-right: 1px solid var(--border); }
+
+h1, h2, h3, h4, h5, h6 { font-weight: 600 !important; color: var(--text); }
+
+.hero {
+  background: var(--teal);
+  color: #FFFFFF;
+  padding: 1.2rem 1.6rem;
+  border-radius: 4px;
+  margin-bottom: 1.2rem;
+  border: 1px solid var(--teal-hover);
+}
+.hero .eyebrow {
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.88;
+  font-weight: 600;
+  margin-bottom: 0.2rem;
+}
+.hero h1 {
+  font-size: 1.8rem !important;
+  font-weight: 600 !important;
+  margin: 0 0 0.35rem !important;
+  color: #FFFFFF !important;
+  line-height: 1.2;
+  padding: 0;
+}
+.hero p {
+  font-size: 0.95rem;
+  opacity: 0.92;
+  margin: 0;
+  color: #F0FDFA;
+}
+
+.card {
+  background: #FFFFFF;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1rem 1.2rem;
+  box-shadow: 0 1px 2px rgba(0,0,0,.04);
+  margin-bottom: 0.8rem;
+}
+.card h4 {
+  margin: 0 0 0.45rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+.stat {
+  background: #FFFFFF;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.75rem 1rem;
+  box-shadow: 0 1px 2px rgba(0,0,0,.04);
+  border-top: 3px solid var(--c, var(--teal));
+}
+.stat b {
+  display: block;
+  font-size: 1.55rem;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.2;
+}
+.stat span {
+  font-size: 0.72rem;
+  color: var(--muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.cand {
+  display: grid;
+  grid-template-columns: 36px 72px 1fr;
+  gap: 0.9rem;
+  align-items: center;
+  margin-bottom: 0.3rem;
+}
+.rank {
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-align: center;
+}
+.score-box {
+  width: 68px;
+  padding: 4px 2px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  text-align: center;
+  background: #FAFAF9;
+}
+.score-num {
+  display: block;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--teal);
+  line-height: 1.1;
+}
+.score-den {
+  font-size: 0.7rem;
+  color: var(--muted);
+  font-weight: 500;
+}
+.ctitle {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 0.15rem;
+}
+.why {
+  color: var(--muted);
+  font-size: 0.88rem;
+  margin-bottom: 0.35rem;
+}
+
+.pill {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  margin-left: 0.5rem;
+  vertical-align: middle;
+}
+.pill.strong { background: #F0FDF4; color: #15803D; border: 1px solid #BBF7D0; }
+.pill.pot { background: #FFFBEB; color: #B45309; border: 1px solid #FDE68A; }
+.pill.weak { background: #FEF2F2; color: #B91C1C; border: 1px solid #FECACA; }
+
+.chip {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  margin: 2px 4px 2px 0;
+  border: 1px solid transparent;
+}
+.chip.ok { background: #F0FDF4; color: #15803D; border-color: #BBF7D0; }
+.chip.miss { background: #FEF2F2; color: #B91C1C; border-color: #FECACA; }
+.chip.bonus { background: #F0FDFA; color: #0F766E; border-color: #99F6E4; }
+.chip.gray { background: #F5F5F4; color: #44403C; border-color: #E7E5E4; }
+
+.bars {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.8rem;
+  margin-top: 0.45rem;
+}
+.bl {
+  font-size: 0.72rem;
+  color: var(--muted);
+  font-weight: 600;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.15rem;
+}
+.bar {
+  height: 6px;
+  border-radius: 2px;
+  background: #E7E5E4;
+  overflow: hidden;
+}
+.bar i {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--teal);
+}
+
+.tbl {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+.tbl th {
+  text-align: left;
+  background: #F5F5F4;
+  color: #44403C;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.45rem 0.6rem;
+  border-bottom: 1px solid var(--border);
+}
+.tbl td {
+  padding: 0.45rem 0.6rem;
+  border-bottom: 1px solid #E7E5E4;
+  color: var(--text);
+}
+.tbl tr:last-child td {
+  border-bottom: none;
+}
+
+.steps {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+.step {
+  background: #FFFFFF;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.85rem;
+}
+.step .n {
+  width: 22px;
+  height: 22px;
+  border-radius: 3px;
+  background: var(--teal);
+  color: #FFFFFF;
+  font-weight: 600;
+  font-size: 0.8rem;
+  display: grid;
+  place-items: center;
+  margin-bottom: 0.35rem;
+}
+.step b { color: var(--text); font-size: 0.9rem; font-weight: 600; }
+.step p { font-size: 0.8rem; color: var(--muted); margin: 0.2rem 0 0; }
+
+.arch {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.6rem;
+  text-align: center;
+}
+.arch div {
+  padding: 0.75rem 0.5rem;
+  border-radius: 4px;
+  font-weight: 600;
+  color: #FFFFFF;
+  font-size: 0.85rem;
+}
+.arch small {
+  display: block;
+  font-weight: 400;
+  opacity: 0.9;
+  margin-top: 0.2rem;
+}
+
+.mode {
+  display: inline-block;
+  padding: 0.2rem 0.55rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  margin-bottom: 0.6rem;
+  background: #F0FDFA;
+  color: var(--teal);
+  border: 1px solid #99F6E4;
+}
+
+div[data-testid="stTabs"] [data-baseweb="tab-list"] {
+  border-bottom: 1px solid var(--border);
+  gap: 1rem;
+  background: transparent;
+}
+button[data-baseweb="tab"] {
+  font-weight: 600;
+  font-size: 0.92rem;
+  color: var(--muted);
+  border: none;
+  background: transparent;
+  padding: 0.45rem 0.3rem;
+  border-radius: 0;
+}
+button[data-baseweb="tab"][aria-selected="true"] {
+  color: var(--teal) !important;
+  border-bottom: 2px solid var(--teal) !important;
+}
+
+div.stButton > button {
+  border-radius: 4px;
+  font-weight: 500;
+  border: 1px solid var(--border);
+  background: #FFFFFF;
+  color: var(--text);
+  width: 100%;
+  padding: 0.4rem 0.8rem;
+  transition: all 0.1s ease;
+}
+div.stButton > button:hover {
+  border-color: var(--teal);
+  color: var(--teal);
+  background: #F0FDFA;
+}
+div.stDownloadButton > button {
+  border-radius: 4px;
+  font-weight: 500;
+  border: 1px solid var(--teal);
+  background: #FFFFFF;
+  color: var(--teal);
+  width: 100%;
+  padding: 0.4rem 0.8rem;
+}
+div.stDownloadButton > button:hover {
+  background: var(--teal);
+  color: #FFFFFF;
+}
+button[kind="primary"], button[data-testid="stBaseButton-primary"] {
+  background: var(--accent) !important;
+  color: #FFFFFF !important;
+  border: 1px solid var(--accent-hover) !important;
+  border-radius: 4px !important;
+  font-weight: 600 !important;
+  box-shadow: 0 1px 2px rgba(0,0,0,.08) !important;
+}
+button[kind="primary"]:hover, button[data-testid="stBaseButton-primary"]:hover {
+  background: var(--accent-hover) !important;
+  color: #FFFFFF !important;
+}
+
+[data-testid="stChatMessage"] {
+  background: #FFFFFF;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.75rem 0.9rem;
+  box-shadow: 0 1px 2px rgba(0,0,0,.04);
+}
+
+.foot {
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.78rem;
+  margin: 1.5rem 0 0.5rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--border);
+}
+
+@media (max-width:900px) {
+  .stats, .steps, .arch { grid-template-columns: 1fr 1fr; }
+  .bars { grid-template-columns: 1fr; }
+  .cand { grid-template-columns: 30px 65px 1fr; }
+}
 </style>""", unsafe_allow_html=True)
 
-SAMPLE_JD = "sample_data/sample_jd.txt"; SAMPLE_DIR = "sample_data/resumes"
-QUICK = ["Who should I interview first?", "Top 3 candidates", "What is skill gap?", "How is score calculated?"]
 
-def greeting(jd, ranked):
-    st_ = Screening(jd, ranked); g = st_.skill_gap_summary()
-    title = next((l.strip() for l in jd.text.splitlines() if l.strip()), "the role")
-    strong = sum(c.result["verdict"] == "Strong match" for c in ranked); top = ranked[0]
-    gaps = {k: v for k, v in g["pct_missing_each_required"].items() if v}
-    msg = (f"👋 Hi! I screened **{len(ranked)} resume(s)** for **{title}**.\n\n"
-           f"- 🏆 Best match: **{top.cid}** with score **{top.result['score']}** ({top.result['verdict']})\n"
-           f"- ✅ Strong matches: **{strong}**\n")
-    if gaps: k = max(gaps, key=gaps.get); msg += f"- ⚠️ Biggest skill gap in the pool: **{k}** (missing in {gaps[k]}% of candidates)\n"
-    return msg + "\nWhat would you like to know?"
+def chips(items, cls): return "".join(f'<span class="chip {cls}">{esc(i)}</span>' for i in items)
 
-def screen(text, raw, weights):
-    jd = parse_jd(text); cands = [parse_resume(i + 1, n, b) for i, (n, b) in enumerate(raw)]
-    t = sum(weights) or 1; ranked = score_all(jd, cands, tuple(w / t for w in weights))
-    st.session_state.update(jd=jd, ranked=ranked, last_id=None, greet_msg=greeting(jd, ranked))
-    reset_chat()
 
-def reset_chat():
-    st.session_state.chat = [dict(role="assistant", content=st.session_state.greet_msg, greet=True, trace=[])]
+def table(rows):
+    if not rows: return ""
+    th = "".join(f"<th>{esc(str(k))}</th>" for k in rows[0])
+    tb = "".join("<tr>" + "".join(f"<td>{esc(str(v))}</td>" for v in r.values()) + "</tr>" for r in rows)
+    return f'<div class="card" style="padding:.4rem .7rem;overflow-x:auto"><table class="tbl"><thead><tr>{th}</tr></thead><tbody>{tb}</tbody></table></div>'
 
-def load_samples():
-    return [(n, open(f"{SAMPLE_DIR}/{n}", "rb").read()) for n in sorted(os.listdir(SAMPLE_DIR))] if os.path.isdir(SAMPLE_DIR) else []
 
-# ---------------- sidebar ----------------
+def card(rank, c, ctx):
+    p, m = c["pts"], c["max"]
+    bars = "".join(f'<div><div class="bl"><span>{n}</span><span>{p[k]:.0f}/{m[k]:.0f}</span></div><div class="bar"><i style="width:{100 * p[k] / m[k] if m[k] else 0:.0f}%"></i></div></div>'
+                   for n, k in [("Skills", "skills"), ("Semantic", "semantic"), ("Experience", "experience")])
+    warn = f'<div class="why">⚠️ {esc(c["warn"])}</div>' if c["warn"] else ""
+    return (f'<div class="card"><div class="cand"><div class="rank">#{rank}</div>'
+            f'<div class="score-box"><span class="score-num">{c["score"]:.0f}</span><span class="score-den">/100</span></div>'
+            f'<div><div class="ctitle">{esc(A.label(ctx, c))}<span class="pill {PILL[c["verdict"]]}">{c["verdict"]}</span></div><div class="why">{esc(c["why"])}</div>{warn}'
+            f'<div>{chips(c["req_hit"], "ok")}{chips(c["req_miss"], "miss")}{chips(c["pref_hit"], "bonus")}</div><div class="bars">{bars}</div></div></div></div>')
+
+
+# ── Header ──
+st.markdown("""<div class="hero"><div class="eyebrow">AAILLM · Sanjivani College of Engineering · A.Y. 2026-27</div><h1>Resume Screening Copilot</h1>
+<p>An agentic AI assistant that reads, scores and ranks resumes against a job description with explainable decisions.</p></div>""", unsafe_allow_html=True)
+
+# ── Sidebar ──
 with st.sidebar:
-    st.header("📄 Job description")
-    jd_file = st.file_uploader("Upload JD (txt/pdf/docx)", type=["txt", "pdf", "docx"])
-    jd_text = st.text_area("…or paste JD", value=open(SAMPLE_JD).read() if os.path.exists(SAMPLE_JD) else "", height=200)
-    st.header("👥 Resumes")
-    files = st.file_uploader("Upload resumes (PDF/DOCX/TXT)", type=["pdf", "docx", "txt"], accept_multiple_files=True)
-    use_samples = st.checkbox("Use bundled sample resumes", value=not files)
-    st.header("⚙️ Settings")
-    anon = st.toggle("Bias-aware mode (anonymise profiles)", value=True, help="ON: candidates appear as C1, C2… (C1 = upload order, NOT rank); names/contacts are hidden and removed before scoring.")
-    w_s = st.slider("Weight: skills", 0, 100, 55); w_m = st.slider("Weight: semantic fit", 0, 100, 20); w_e = st.slider("Weight: experience", 0, 100, 25)
-    with st.expander("Advanced: LLM agent (optional)"):
-        st.caption("Not needed. Adds free-form Claude chat. Leave empty to use the built-in offline copilot.")
-        key = st.text_input("Anthropic API key", type="password", value=os.getenv("ANTHROPIC_API_KEY", ""))
-    go = st.button("🚀 Screen candidates", type="primary", use_container_width=True)
+    st.markdown("### Copilot settings")
+    st.caption("SCORING WEIGHTS")
+    ws, wm, we = st.slider("Skills match", 0, 100, 55), st.slider("Semantic similarity (TF-IDF)", 0, 100, 20), st.slider("Experience", 0, 100, 25)
+    tw = (ws + wm + we) or 1
+    st.caption(f"Normalised → {ws / tw:.0%} skills · {wm / tw:.0%} semantic · {we / tw:.0%} experience")
+    bias = st.toggle("Bias-aware mode", True, help="Masks name, email, phone, links and he/she before scoring. Candidates appear as C1, C2… until shortlisted.")
+    st.divider()
+    st.caption("GENAI MODE (OPTIONAL)")
+    key = st.text_input("Anthropic API key", os.getenv("ANTHROPIC_API_KEY", ""), type="password", help="Leave empty to use the offline rule-based agent.")
+    model = st.text_input("Claude model", os.getenv("CLAUDE_MODEL", "claude-sonnet-5-5"))
+    st.info("Verdict: **70+** Strong · **50–69** Potential · **<50** Weak.\n\nNo one is rejected automatically — the recruiter decides.")
 
-if go:
-    text = read_file(jd_file.name, jd_file.getvalue()) if jd_file else jd_text
-    raw = [(f.name, f.getvalue()) for f in files] if files else []
-    if use_samples or not raw: raw += load_samples()
-    if not text.strip() or not raw: st.error("Provide a job description and at least one resume.")
-    else: screen(text, raw, (w_s, w_m, w_e))
-if "ranked" not in st.session_state:
-    if os.path.exists(SAMPLE_JD) and load_samples(): screen(open(SAMPLE_JD).read(), load_samples(), (55, 20, 25))
-    else: st.info("Upload a JD and resumes in the sidebar, then click **Screen candidates**."); st.stop()
+t_screen, t_res, t_chat, t_about = st.tabs(["Screen resumes", "Ranked results", "Copilot chat", "About"])
 
-jd, ranked = st.session_state.jd, st.session_state.ranked
-state = Screening(jd, ranked, anonymise=anon); state.last_id = st.session_state.get("last_id")
-mode = "Claude agent" if llm_available(key) else "Offline copilot"
-st.markdown(f"<div class='hero'><h1>🧭 Resume Screening Copilot</h1><p>Ask me about your candidates · I read, score, rank and explain · Mode: {mode}</p></div>", unsafe_allow_html=True)
+# ── Screen resumes ──
+with t_screen:
+    left, right = st.columns([1, 1.15], gap="large")
+    with left:
+        st.markdown("#### Resumes")
+        src = st.radio("Source", ["Bundled sample resumes (5)", "Upload my own"], horizontal=True, label_visibility="collapsed")
+        ups = st.file_uploader("PDF, DOCX or TXT", type=["pdf", "docx", "txt"], accept_multiple_files=True) if src.startswith("Upload") else []
+        if not ups and src.startswith("Upload"): st.caption("Upload one or more resumes to continue.")
+        if src.startswith("Bundled"): st.caption("Five fictional resumes: a GenAI engineer, a fresher, a data analyst, a full-stack dev and an AI engineer.")
+    with right:
+        st.markdown("#### Job description")
+        jd = st.text_area("JD", (SAMPLES / "job_description.txt").read_text(), height=290, label_visibility="collapsed",
+                          help="Put skills under 'Required skills' and 'Preferred skills' headings for best results.")
+    if st.button("Screen resumes", type="primary"):
+        files = [(p.name, p.read_bytes()) for p in sorted((SAMPLES / "resumes").glob("*.txt"))] if src.startswith("Bundled") else [(u.name, u.getvalue()) for u in ups]
+        cands = []
+        for i, (n, d) in enumerate(files, 1):
+            try: cands.append(E.make_candidate(len(cands) + 1, n, d))
+            except Exception as e: st.warning(f"Could not read {n}: {e}")
+        job = E.parse_job(jd)
+        if not cands: st.error("Add at least one resume first.")
+        elif not job["required"] and not job["preferred"]: st.error("No known skills found in the job description. Add a 'Required skills' list.")
+        else:
+            for k in [k for k in st.session_state if str(k).startswith("sl_")]: del st.session_state[k]
+            st.session_state.update(raw=cands, job=job, chat=[], last=None)
+            st.success(f"Screened **{len(cands)} resumes** against **{job['title']}** — open **Ranked results** or **Copilot chat**.")
 
-# ---------------- helpers ----------------
-def visuals(trace):
-    done = set()
-    for name, args in trace:
-        if name in done: continue
-        done.add(name)
-        if name in ("shortlist", "find_by_skill"):
-            rows = state.shortlist(args.get("top_n", 5)) if name == "shortlist" else state.find_by_skill(args.get("skill", ""))
-            if rows: st.dataframe(pd.DataFrame([{"Rank": r["rank"], "Candidate": r["candidate"], "Score": r["score"], "Verdict": r["verdict"], "Exp (yrs)": r["years"]} for r in rows]),
-                                  hide_index=True, column_config={"Score": st.column_config.ProgressColumn("Score", min_value=0, max_value=100, format="%.1f")})
-        elif name in ("get_candidate", "recommend", "interview_questions", "draft_email"):
-            d = state.get_candidate(args.get("candidate_id") or state.ranked[0].cid)
-            if "error" in d or name in ("interview_questions", "draft_email"): continue
-            c = st.columns(4); c[0].metric("Score", d["score"]); c[1].metric("Rank", f"#{d['rank']}"); c[2].metric("Verdict", d["verdict"]); c[3].metric("Experience", f"{d['years']:g} yrs")
-            for k, v in d["score_breakdown"].items(): st.progress(min(v, 100) / 100, text=f"{k.title()} {v}%")
-        elif name == "compare":
-            ids = args.get("candidate_ids", []); cols = st.columns(max(len(ids), 1))
-            for col, i in zip(cols, ids):
-                d = state.get_candidate(i)
-                if "error" not in d: col.metric(d["candidate"], d["score"], d["verdict"], delta_color="off")
-        elif name == "skill_gap_summary":
-            g = state.skill_gap_summary()
-            if any(g["pct_missing_each_required"].values()): st.bar_chart(pd.Series(g["pct_missing_each_required"], name="% candidates missing"))
+# ── Scoring (re-runs when weights / bias change) ──
+raw, job = st.session_state.get("raw"), st.session_state.get("job")
+ctx = None
+if raw:
+    E.score_all(raw, job, {"skills": ws, "semantic": wm, "experience": we}, bias)
+    short = {c["id"] for c in raw if st.session_state.get(f"sl_{c['id']}")}
+    ctx = {"cands": raw, "job": job, "bias": bias, "reveal": short, "last": st.session_state.get("last")}
+    ranked = sorted(raw, key=lambda c: -c["score"])
 
-def last_id_from(trace):
-    for name, a in reversed(trace):
-        if a.get("candidate_id"): return a["candidate_id"].upper()
-        if a.get("candidate_ids"): return a["candidate_ids"][0].upper()
-        if name == "recommend": return state.ranked[0].cid
-    return st.session_state.get("last_id")
+# ── Ranked results ──
+with t_res:
+    if not ctx: st.info("Run a screening in the **Screen resumes** tab to see ranked candidates here.")
+    else:
+        cnt = {v: sum(c["verdict"] == v for c in raw) for v in COL}
+        st.markdown('<div class="stats">' + "".join(f'<div class="stat" style="--c:{c}"><b>{v}</b><span>{l}</span></div>' for l, v, c in [
+            ("Screened", len(raw), "#0F766E"), ("Strong match", cnt["Strong match"], COL["Strong match"]), ("Potential", cnt["Potential"], COL["Potential"]),
+            ("Weak match", cnt["Weak match"], COL["Weak match"]), ("Average score", f"{sum(c['score'] for c in raw) / len(raw):.0f}", "#EA580C")]) + "</div>", unsafe_allow_html=True)
+        st.markdown(f'<div class="card"><h4>{esc(job["title"])} · {job["min_years"]:g}+ years</h4><b>Required</b> &nbsp;{chips(job["required"], "gray")}<br><b>Preferred</b> &nbsp;{chips(job["preferred"], "gray")}</div>', unsafe_allow_html=True)
+        st.markdown(f'<span class="chip ok">Matched required</span><span class="chip miss">Not mentioned (verify)</span><span class="chip bonus">Bonus skill</span>', unsafe_allow_html=True)
+        for i, c in enumerate(ranked, 1):
+            st.markdown(card(i, c, ctx), unsafe_allow_html=True)
+            a, b = st.columns([1, 3])
+            a.checkbox("Shortlist", key=f"sl_{c['id']}", help="Shortlisting reveals the identity in bias-aware mode.")
+            if bias and c["id"] in short:
+                ct = E.contacts(c["text"]); b.caption(f"**{c['name']}** · {ct['email']} · {ct['phone']} · _{c['file']}_")
+        st.markdown("#### Score composition")
+        st.bar_chart(pd.DataFrame([{"Candidate": A.label(ctx, c), "Skills": c["pts"]["skills"], "Semantic": c["pts"]["semantic"], "Experience": c["pts"]["experience"]} for c in ranked]).set_index("Candidate"),
+                     color=["#0F766E", "#EA580C", "#78716C"])
+        df = pd.DataFrame([{"Rank": i, "Candidate": A.label(ctx, c), "Score": c["score"], "Verdict": c["verdict"], "Shortlisted": c["id"] in short,
+                            "Matched required": ", ".join(c["req_hit"]), "Missing required": ", ".join(c["req_miss"]), "Bonus": ", ".join(c["pref_hit"]), "Years": c["yrs"]} for i, c in enumerate(ranked, 1)])
+        d1, d2 = st.columns(2)
+        d1.download_button("Download full ranking (CSV)", df.to_csv(index=False), "ranking.csv", "text/csv")
+        d2.download_button("Download shortlist only (CSV)", df[df.Shortlisted].to_csv(index=False), "shortlist.csv", "text/csv", disabled=not short)
 
-def suggestions(trace):
-    cid = st.session_state.get("last_id"); names = [n for n, _ in trace]; last = names[-1] if names else ""
-    if last in ("recommend", "get_candidate") and cid: return [f"Interview questions for {cid}", f"Draft invite for {cid}", "Compare top 2 candidates"]
-    if last == "interview_questions" and cid: return [f"Draft invite for {cid}", f"Why {cid}?", "Skill gaps in this pool"]
-    if last == "draft_email" and cid: return [f"Interview questions for {cid}", "Top 3 candidates", "Skill gaps in this pool"]
-    if last == "skill_gap_summary": return ["Who should I interview first?", "Top 3 candidates", "What is skill gap?"]
-    if last in ("shortlist", "compare", "find_by_skill"): return ["Who should I interview first?", "Skill gaps in this pool", "Explain the top candidate"]
-    return ["Who should I interview first?", "Top 3 candidates", "Skill gaps in this pool"]
-
-def ask(text): st.session_state.pending = text
-def stream(text):
-    for tok in re.split(r"(\s+)", text): yield tok; time.sleep(0.01)
-
-# ---------------- tabs ----------------
-t_chat, t_dash = st.tabs(["💬 Copilot", "📊 Dashboard"])
-
+# ── Copilot chat ──
 with t_chat:
-    top = st.columns([6, 1]); top[1].button("🗑 New chat", on_click=reset_chat, use_container_width=True)
-    for m in st.session_state.chat:
-        with st.chat_message(m["role"], avatar="🧭" if m["role"] == "assistant" else None):
-            st.markdown(m["content"]); visuals(m.get("trace", []))
-            if m.get("trace"):
-                with st.expander("🛠 Agent steps (tools used)"):
-                    for n, a in m["trace"]:
-                        st.code(f"{n}({a})")
-    typed = st.chat_input("Message Resume Screening Copilot…")
-    q = typed or st.session_state.pop("pending", None)
-    st.session_state._typing = bool(q)
-    if len(st.session_state.chat) == 1 and not q:
-        st.caption("Try asking")
-        cols = st.columns(4)
-        for i, qq in enumerate(QUICK): cols[i].button(qq, key=f"home{i}", on_click=ask, args=(qq,), use_container_width=True)
-    if q:
-        st.session_state.chat.append(dict(role="user", content=q, trace=[]))
-        with st.chat_message("user"): st.markdown(q)
-        with st.chat_message("assistant", avatar="🧭"):
-            note = ""
-            with st.spinner("Thinking…"):
-                try:
-                    if llm_available(key):
-                        hist = [{"role": m["role"], "content": m["content"]} for m in st.session_state.chat if not m.get("greet")]
-                        ans, trace = run_llm_agent(state, hist, api_key=key)
-                    else: ans, trace = run_offline_agent(state, q)
-                except Exception as e:
-                    ans, trace = run_offline_agent(state, q)
-                    note = "_API key invalid or LLM unreachable, so I answered with the offline copilot._\n\n" if ("401" in str(e) or "auth" in str(e).lower()) else "_LLM unavailable, using offline copilot._\n\n"
-            ans = note + ans; st.write_stream(stream(ans)); visuals(trace)
-            if trace:
-                with st.expander("🛠 Agent steps (tools used)"):
-                    for n, a in trace:
-                        st.code(f"{n}({a})")
-        st.session_state.last_id = last_id_from(trace)
-        st.session_state.chat.append(dict(role="assistant", content=ans, trace=trace)); st.session_state.sugg = suggestions(trace)
-    elif len(st.session_state.chat) > 1:
-        st.session_state.setdefault("sugg", suggestions([]))
-    if len(st.session_state.chat) > 1:
-        cols = st.columns(3)
-        for i, s_ in enumerate(st.session_state.get("sugg", [])[:3]): cols[i].button(s_, key=f"s{len(st.session_state.chat)}_{i}", on_click=ask, args=(s_,), use_container_width=True)
+    if not ctx: st.info("Run a screening first — the copilot answers from the real screening data.")
+    else:
+        st.markdown(f'<span class="mode">{"GenAI mode · Claude tool-use" if key else "Offline mode · rule-based agent"}</span>', unsafe_allow_html=True)
+        best = ranked[0]["id"]
+        sug = ["Who should I interview first?", "Show the top 3", "Skill gaps in the pool", f"Compare {ranked[0]['id']} and {ranked[1]['id']}" if len(ranked) > 1 else "Show all candidates",
+               f"Interview questions for {best}", f"Draft an invite for {best}"]
+        for i, col in enumerate(st.columns(3)):
+            for j in (i, i + 3): col.button(sug[j], key=f"sg{j}", on_click=lambda s=sug[j]: st.session_state.update(pending=s))
+        box = st.container()
+        q = st.chat_input("Ask the copilot… e.g. “compare C1 and C5” or “who has Docker?”") or st.session_state.pop("pending", None)
+        chat = st.session_state.setdefault("chat", [])
+        if q:
+            hist = [{"role": m["role"], "content": m["content"]} for m in chat]
+            chat.append({"role": "user", "content": q})
+            with st.spinner("Copilot is working…"): res = A.answer(ctx, q, hist, key, model)
+            chat.append({"role": "assistant", "content": res["answer"], **{k: res[k] for k in ("table", "chart", "steps", "follow", "mode")}})
+            st.session_state.last = ctx["last"]
+        with box:
+            if not chat: st.markdown(f"Screening copilot ready. Screened **{len(raw)} resumes** for **{esc(job['title'])}**. Pick a suggestion above or ask me anything.")
+            for m in chat:
+                with st.chat_message(m["role"]):
+                    st.markdown(m["content"])
+                    if m["role"] == "assistant":
+                        if m.get("table"): st.markdown(table(m["table"]), unsafe_allow_html=True)
+                        if m.get("chart"): st.bar_chart(pd.Series(m["chart"], name="value"), color="#0F766E")
+                        if m.get("steps"):
+                            with st.expander("Agent steps"):
+                                for n, s in enumerate(m["steps"], 1): st.markdown(f"{n}. `{s['tool']}({', '.join(f'{k}={v!r}' for k, v in s['args'].items())})`")
+            if chat and chat[-1]["role"] == "assistant" and chat[-1].get("follow"):
+                st.caption("Suggested follow-ups")
+                for i, f in enumerate(chat[-1]["follow"][:3]): st.button(f, key=f"fu{len(chat)}_{i}", on_click=lambda s=f: st.session_state.update(pending=s))
 
-with t_dash:
-    df = pd.DataFrame([{"Rank": i + 1, "ID": c.cid, "Candidate": c.cid if anon else c.name, "Score": c.result["score"], "Verdict": c.result["verdict"],
-                        "Skills %": c.result["skill_score"], "Semantic %": c.result["semantic"], "Exp (yrs)": c.years, "Missing required": ", ".join(c.result["missing_required"])} for i, c in enumerate(ranked)])
-    st.markdown(f"**Required:** {', '.join(jd.required) or '—'}  \n**Preferred:** {', '.join(jd.preferred) or '—'}  \n**Min experience:** {jd.min_years:g} yrs")
-    st.dataframe(df, hide_index=True, column_config={"Score": st.column_config.ProgressColumn("Score", min_value=0, max_value=100, format="%.1f")})
-    st.download_button("⬇ Export shortlist CSV", df.to_csv(index=False), "shortlist.csv", "text/csv")
-    pick = st.selectbox("Candidate detail", [c.cid for c in ranked], format_func=lambda i: state.label(state.by_id[i]))
-    c = state.by_id[pick]; r = c.result
-    if anon and st.checkbox("🔓 Reveal identity (use only after shortlisting)"): st.info(f"**{c.name}** · {c.email or 'no email'} · {c.phone or 'no phone'} · file: {c.filename}")
-    st.subheader("Why this score")
-    for x in r["reasons"]:
-        st.markdown("- " + x)
-    st.markdown(f"✅ **Matched:** {', '.join(r['matched']) or '—'}  \n❌ **Missing required:** {', '.join(r['missing_required']) or 'none'}  \n➕ **Other skills:** {', '.join(r['extra_skills']) or '—'}")
-    with st.expander("Resume text the model saw" + (" (anonymised)" if anon else "")): st.text(c.anon_text if anon else c.raw_text)
-    g = state.skill_gap_summary(); st.subheader("Skill gaps")
-    if any(g["pct_missing_each_required"].values()): st.bar_chart(pd.Series(g["pct_missing_each_required"], name="% candidates missing"))
-    else: st.success("No required-skill gaps: every candidate has all required skills.")
+# ── About ──
+with t_about:
+    st.markdown("#### How it works")
+    st.markdown('<div class="steps">' + "".join(f'<div class="step"><div class="n">{n}</div><b>{t}</b><p>{d}</p></div>' for n, t, d in [
+        (1, "Upload", "PDF, DOCX or TXT resumes and a job description"), (2, "Parse", "Text, skills and years of experience; identity masked"),
+        (3, "Analyse job", "Required and preferred skills, minimum years"), (4, "Match", "Weighted score out of 100"),
+        (5, "Review", "Ranked list, reasons and copilot chat; recruiter decides")]) + "</div>", unsafe_allow_html=True)
+    a, b = st.columns(2, gap="large")
+    with a:
+        st.markdown("#### Scoring formula")
+        st.markdown('<div class="card"><b>Score = 55% Skills + 20% Semantic + 25% Experience</b><br><br><span class="chip ok">Skills</span> required skills count double, preferred once<br>'
+                    '<span class="chip bonus">Semantic</span> TF-IDF cosine similarity between resume and JD<br><span class="chip miss">Experience</span> years from work date ranges vs the required years (education dates ignored)<br><br>'
+                    'The same resume and settings always give the same score.</div>', unsafe_allow_html=True)
+        st.markdown("#### Fair and secure")
+        st.markdown('<div class="card">• Name, email, phone, links and pronouns are masked before scoring<br>• Candidates appear as C1, C2… until shortlisted<br>• No automatic rejection — the recruiter decides<br>• Processed in the session only; no database or file storage</div>', unsafe_allow_html=True)
+    with b:
+        st.markdown("#### Architecture")
+        st.markdown('<div class="card"><div class="arch"><div style="background:#0F766E">Streamlit UI<small>presentation tier</small></div><div style="background:#115E59">Agent<small>Claude or offline</small></div>'
+                    '<div style="background:#134E4A">8 tools<small>shortlist · compare · …</small></div><div style="background:#44403C">Core engine<small>parse · skills · score</small></div></div></div>', unsafe_allow_html=True)
+        st.markdown("#### Agent tools")
+        st.markdown('<div class="card">' + chips(list(A.TOOLS), "bonus") + "</div>", unsafe_allow_html=True)
+        st.markdown("#### Limits (stated honestly)")
+        st.markdown('<div class="card">Skill dictionary is limited (~70 skills) · scanned PDFs need OCR · experience is estimated from dates and phrases · semantic part is TF-IDF, not neural embeddings. <b>Academic prototype — not a certified hiring tool.</b></div>', unsafe_allow_html=True)
+
+st.markdown('<div class="foot">Resume Screening Copilot · AAILLM · Dept. of Information Technology, Sanjivani College of Engineering, Kopargaon</div>', unsafe_allow_html=True)

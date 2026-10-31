@@ -1,5 +1,0 @@
-Sneha Iyer
-sneha.iyer@mail.com | 8888877777
-Generative AI engineer with 3 years of experience. Python, LLMs, RAG, FastAPI, Docker, Git, SQL, REST APIs, Pinecone, GCP.
-AI Engineer, Cognito Labs 2023 - Present. Built agentic workflows with LangGraph and Claude.
-M.Sc Data Science
